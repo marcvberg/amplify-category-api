@@ -26,7 +26,7 @@ import { generateConditionSlot } from './common';
  * Generates VTL template in update mutation
  * @param modelName Name of the model
  */
-export const generateUpdateRequestTemplate = (modelName: string, isSyncEnabled: boolean): string => {
+export const generateUpdateRequestTemplate = (modelName: string, isSyncEnabled: boolean, useLambdaResolver: boolean): string => {
   const objectKeyVariable = 'ctx.stash.metadata.modelObjectKey';
   const keyFields: StringNode[] = [str('id')];
   if (isSyncEnabled) {

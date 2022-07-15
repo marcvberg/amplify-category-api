@@ -92,7 +92,7 @@ import {
   generateSyncRequestTemplate,
 } from './resolvers/query';
 import { API_KEY_DIRECTIVE } from './definitions';
-import { SubscriptionLevel, ModelDirectiveConfiguration } from './directive';
+import {SubscriptionLevel, ModelDirectiveConfiguration, ResolverType} from './directive';
 
 /**
  * Nullable
@@ -105,6 +105,7 @@ export const directiveDefinition = /* GraphQl */ `
     mutations: ModelMutationMap
     subscriptions: ModelSubscriptionMap
     timestamps: TimestampConfiguration
+    resolvers: ResolverType
   ) on OBJECT
   input ModelMutationMap {
     create: String
@@ -129,6 +130,10 @@ export const directiveDefinition = /* GraphQl */ `
   input TimestampConfiguration {
     createdAt: String
     updatedAt: String
+  }
+  enum ResolverType {
+    dynamo
+    lambda
   }
 `;
 
@@ -225,6 +230,7 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
         createdAt: 'createdAt',
         updatedAt: 'updatedAt',
       },
+      resolvers: ResolverType.DYNAMO,
     });
 
     if (options.subscriptions?.onCreate && !Array.isArray(options.subscriptions.onCreate)) {
@@ -469,6 +475,8 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
     resolverLogicalId: string,
   ): TransformerResolverProvider => {
     const isSyncEnabled = ctx.isProjectUsingDataStore();
+    const modelOptions = this.modelDirectiveConfig.get(type.name.value);
+    const useLambdaResolver = modelOptions?.resolvers === ResolverType.LAMBDA;
     const dataSource = this.datasourceMap[type.name.value];
     const resolverKey = `Update${generateResolverKey(typeName, fieldName)}`;
     if (!this.resolverMap[resolverKey]) {
@@ -478,7 +486,7 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
         resolverLogicalId,
         dataSource,
         MappingTemplate.s3MappingTemplateFromString(
-          generateUpdateRequestTemplate(typeName, isSyncEnabled),
+          generateUpdateRequestTemplate(typeName, isSyncEnabled, useLambdaResolver),
           `${typeName}.${fieldName}.req.vtl`,
         ),
         MappingTemplate.s3MappingTemplateFromString(
@@ -490,7 +498,7 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
       resolver.addToSlot(
         'init',
         MappingTemplate.s3MappingTemplateFromString(
-          generateUpdateInitSlotTemplate(this.modelDirectiveConfig.get(type.name.value)!),
+          generateUpdateInitSlotTemplate(modelOptions!),
           `${typeName}.${fieldName}.{slotName}.{slotIndex}.req.vtl`,
         ),
       );

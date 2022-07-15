@@ -10,6 +10,11 @@ export enum SubscriptionLevel {
   on = 'on',
 }
 
+export enum ResolverType {
+  DYNAMO = 'dynamo',
+  LAMBDA = 'lambda',
+}
+
 /**
  * ModelDirectiveConfiguration
  */
@@ -34,4 +39,5 @@ export type ModelDirectiveConfiguration = {
     createdAt: Partial<string>;
     updatedAt: Partial<string>;
   }>;
+  resolvers: ResolverType;
 };
