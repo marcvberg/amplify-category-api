@@ -1,15 +1,15 @@
 import {
   DirectiveWrapper,
+  FieldWrapper,
+  getFieldNameFor,
+  InputObjectDefinitionWrapper,
   InvalidDirectiveError,
   MappingTemplate,
+  ObjectDefinitionWrapper,
   SyncConfig,
   SyncUtils,
   TransformerModelBase,
   TransformerNestedStack,
-  FieldWrapper,
-  InputObjectDefinitionWrapper,
-  ObjectDefinitionWrapper,
-  getFieldNameFor,
 } from '@aws-amplify/graphql-transformer-core';
 import {
   AppSyncDataSourceType,
@@ -18,6 +18,7 @@ import {
   MutationFieldType,
   QueryFieldType,
   SubscriptionFieldType,
+  TransformerBeforeStepContextProvider,
   TransformerContextProvider,
   TransformerModelProvider,
   TransformerPrepareStepContextProvider,
@@ -25,14 +26,12 @@ import {
   TransformerSchemaVisitStepContextProvider,
   TransformerTransformSchemaStepContextProvider,
   TransformerValidationStepContextProvider,
-  TransformerBeforeStepContextProvider,
 } from '@aws-amplify/graphql-transformer-interfaces';
-import {
-  AttributeType, CfnTable, ITable, StreamViewType, Table, TableEncryption,
-} from '@aws-cdk/aws-dynamodb';
+import {AttributeType, CfnTable, ITable, StreamViewType, Table, TableEncryption,} from '@aws-cdk/aws-dynamodb';
 import * as iam from '@aws-cdk/aws-iam';
+import {CfnRole} from '@aws-cdk/aws-iam';
 import * as cdk from '@aws-cdk/core';
-import { CfnDataSource } from '@aws-cdk/aws-appsync';
+import {CfnDataSource} from '@aws-cdk/aws-appsync';
 import {
   DirectiveNode,
   FieldDefinitionNode,
@@ -57,7 +56,6 @@ import {
   toCamelCase,
   toPascalCase,
 } from 'graphql-transformer-common';
-import { CfnRole } from '@aws-cdk/aws-iam';
 import {
   addDirectivesToOperation,
   addModelConditionInputs,
@@ -66,10 +64,10 @@ import {
   makeCreateInputField,
   makeDeleteInputField,
   makeListQueryFilterInput,
-  makeSubscriptionQueryFilterInput,
   makeListQueryModel,
   makeModelSortDirectionEnumObject,
   makeMutationConditionInput,
+  makeSubscriptionQueryFilterInput,
   makeUpdateInputField,
   propagateApiKeyToNestedTypes,
 } from './graphql-types';
@@ -77,6 +75,8 @@ import {
   generateAuthExpressionForSandboxMode,
   generateCreateInitSlotTemplate,
   generateCreateRequestTemplate,
+  generateDatastoreLambdaInvokeRequestTemplate,
+  generateDatastoreLambdaInvokeResponseTemplate,
   generateDefaultResponseMappingTemplate,
   generateDeleteRequestTemplate,
   generateResolverKey,
@@ -91,8 +91,9 @@ import {
   generateListRequestTemplate,
   generateSyncRequestTemplate,
 } from './resolvers/query';
-import { API_KEY_DIRECTIVE } from './definitions';
-import {SubscriptionLevel, ModelDirectiveConfiguration, ResolverType} from './directive';
+import {API_KEY_DIRECTIVE} from './definitions';
+import {ModelDirectiveConfiguration, ResolverType, SubscriptionLevel} from './directive';
+import {createDatastoreLambda, createDatastoreLambdaRole} from "./lambdas/create-datastore-lambda";
 
 /**
  * Nullable
@@ -486,11 +487,12 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
         resolverLogicalId,
         dataSource,
         MappingTemplate.s3MappingTemplateFromString(
-          generateUpdateRequestTemplate(typeName, isSyncEnabled, useLambdaResolver),
+          useLambdaResolver ? generateDatastoreLambdaInvokeRequestTemplate(ResourceConstants.RESOURCES.DataStoreLambdaLogicalID)
+            : generateUpdateRequestTemplate(typeName, isSyncEnabled),
           `${typeName}.${fieldName}.req.vtl`,
         ),
         MappingTemplate.s3MappingTemplateFromString(
-          generateDefaultResponseMappingTemplate(isSyncEnabled, true),
+          useLambdaResolver ? generateDatastoreLambdaInvokeResponseTemplate() : generateDefaultResponseMappingTemplate(isSyncEnabled, true),
           `${typeName}.${fieldName}.res.vtl`,
         ),
       );
@@ -517,15 +519,21 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
     const isSyncEnabled = ctx.isProjectUsingDataStore();
     const dataSource = this.datasourceMap[type.name.value];
     const resolverKey = `delete${generateResolverKey(typeName, fieldName)}`;
+    const usingDatastoreLambda = this.modelDirectiveConfig.get(type.name.value)!.resolvers === ResolverType.LAMBDA;
     if (!this.resolverMap[resolverKey]) {
       this.resolverMap[resolverKey] = ctx.resolvers.generateMutationResolver(
         typeName,
         fieldName,
         resolverLogicalId,
         dataSource,
-        MappingTemplate.s3MappingTemplateFromString(generateDeleteRequestTemplate(isSyncEnabled), `${typeName}.${fieldName}.req.vtl`),
         MappingTemplate.s3MappingTemplateFromString(
-          generateDefaultResponseMappingTemplate(isSyncEnabled, true),
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeRequestTemplate(ResourceConstants.RESOURCES.DataStoreLambdaLogicalID)
+            : generateDeleteRequestTemplate(isSyncEnabled),
+          `${typeName}.${fieldName}.req.vtl`,
+        ),
+        MappingTemplate.s3MappingTemplateFromString(
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeResponseTemplate()
+            : generateDefaultResponseMappingTemplate(isSyncEnabled, true),
           `${typeName}.${fieldName}.res.vtl`,
         ),
       );
@@ -600,15 +608,21 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
     const isSyncEnabled = ctx.isProjectUsingDataStore();
     const dataSource = this.datasourceMap[type.name.value];
     const resolverKey = `Sync${generateResolverKey(typeName, fieldName)}`;
+    const usingDatastoreLambda = this.modelDirectiveConfig.get(type.name.value)!.resolvers === ResolverType.LAMBDA;
     if (!this.resolverMap[resolverKey]) {
       this.resolverMap[resolverKey] = ctx.resolvers.generateQueryResolver(
         typeName,
         fieldName,
         resolverLogicalId,
         dataSource,
-        MappingTemplate.s3MappingTemplateFromString(generateSyncRequestTemplate(), `${typeName}.${fieldName}.req.vtl`),
         MappingTemplate.s3MappingTemplateFromString(
-          generateDefaultResponseMappingTemplate(isSyncEnabled),
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeRequestTemplate(ResourceConstants.RESOURCES.DataStoreLambdaLogicalID)
+            : generateSyncRequestTemplate(),
+          `${typeName}.${fieldName}.req.vtl`,
+        ),
+        MappingTemplate.s3MappingTemplateFromString(
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeResponseTemplate()
+            : generateDefaultResponseMappingTemplate(isSyncEnabled),
           `${typeName}.${fieldName}.res.vtl`,
         ),
       );
@@ -854,15 +868,21 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
     const dataSource = this.datasourceMap[type.name.value];
     const resolverKey = `Create${generateResolverKey(typeName, fieldName)}`;
     const modelIndexFields = type.fields!.filter(field => field.directives?.some(it => it.name.value === 'index')).map(it => it.name.value);
+    const usingDatastoreLambda = this.modelDirectiveConfig.get(type.name.value)!.resolvers === ResolverType.LAMBDA;
     if (!this.resolverMap[resolverKey]) {
       const resolver = ctx.resolvers.generateMutationResolver(
         typeName,
         fieldName,
         resolverLogicalId,
         dataSource,
-        MappingTemplate.s3MappingTemplateFromString(generateCreateRequestTemplate(type.name.value, modelIndexFields), `${typeName}.${fieldName}.req.vtl`),
         MappingTemplate.s3MappingTemplateFromString(
-          generateDefaultResponseMappingTemplate(isSyncEnabled, true),
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeRequestTemplate(ResourceConstants.RESOURCES.DataStoreLambdaLogicalID)
+            : generateCreateRequestTemplate(type.name.value, modelIndexFields),
+          `${typeName}.${fieldName}.req.vtl`,
+        ),
+        MappingTemplate.s3MappingTemplateFromString(
+          usingDatastoreLambda ? generateDatastoreLambdaInvokeResponseTemplate()
+            : generateDefaultResponseMappingTemplate(isSyncEnabled, true),
           `${typeName}.${fieldName}.res.vtl`,
         ),
       );
@@ -1257,6 +1277,21 @@ export class ModelTransformer extends TransformerModelBase implements Transforme
     role: iam.Role,
     dataSourceLogicalName: string,
   ): void {
+    const usingDatastoreLambda = this.modelDirectiveConfig.get(def.name.value)?.resolvers === ResolverType.LAMBDA;
+    if (usingDatastoreLambda) {
+      if (this.datasourceMap.DSLAMBDA === null) {
+        const datastoreRole = createDatastoreLambdaRole(context, stack);
+        const lambdaDataSource = context.api.host.addLambdaDataSource(
+          `${ResourceConstants.RESOURCES.DataStoreLambdaLogicalID}DataSource`,
+          createDatastoreLambda(stack, context.api, datastoreRole),
+          { name: dataSourceLogicalName },
+          stack,
+        );
+        this.datasourceMap.DSLAMBDA = lambdaDataSource;
+      }
+      this.datasourceMap[def!.name.value] = this.datasourceMap.DSLAMBDA;
+      return;
+    }
     const datasourceRoleLogicalID = ModelResourceIDs.ModelTableDataSourceID(def!.name.value);
     const dataSource = context.api.host.addDynamoDbDataSource(
       datasourceRoleLogicalID,

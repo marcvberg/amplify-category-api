@@ -1,18 +1,19 @@
-import { ModelDirectiveConfiguration, SubscriptionLevel } from '@aws-amplify/graphql-model-transformer';
-import { getConnectionAttributeName, getSortKeyConnectionAttributeName } from '@aws-amplify/graphql-relational-transformer';
+import {ModelDirectiveConfiguration, SubscriptionLevel} from '@aws-amplify/graphql-model-transformer';
+import {getConnectionAttributeName, getSortKeyConnectionAttributeName} from '@aws-amplify/graphql-relational-transformer';
 import {
-  DirectiveWrapper, getKeySchema, getTable, InvalidDirectiveError,
+  DirectiveWrapper,
+  getKeySchema,
+  getSortKeyFieldNames,
+  getTable,
+  InvalidDirectiveError,
 } from '@aws-amplify/graphql-transformer-core';
-import { getSortKeyFieldNames } from '@aws-amplify/graphql-transformer-core';
 import {
-  QueryFieldType,
   MutationFieldType,
-  TransformerTransformSchemaStepContextProvider,
+  QueryFieldType,
   TransformerContextProvider,
+  TransformerTransformSchemaStepContextProvider,
 } from '@aws-amplify/graphql-transformer-interfaces';
-import {
-  ObjectTypeDefinitionNode, FieldDefinitionNode, DirectiveNode, NamedTypeNode,
-} from 'graphql';
+import {DirectiveNode, FieldDefinitionNode, NamedTypeNode, ObjectTypeDefinitionNode,} from 'graphql';
 import {
   blankObjectExtension,
   extendFieldWithDirectives,
@@ -26,8 +27,9 @@ import {
   toUpper,
 } from 'graphql-transformer-common';
 import md5 from 'md5';
-import { RELATIONAL_DIRECTIVES } from './constants';
-import { RelationalPrimaryMapConfig, RoleDefinition, SearchableConfig } from './definitions';
+import {RELATIONAL_DIRECTIVES} from './constants';
+import {RelationalPrimaryMapConfig, RoleDefinition, SearchableConfig} from './definitions';
+import {ResolverType} from "@aws-amplify/graphql-model-transformer/lib/directive";
 
 /**
  * collectFieldNames
@@ -65,6 +67,7 @@ export const getModelConfig = (directive: DirectiveNode, typeName: string, isDat
       createdAt: 'createdAt',
       updatedAt: 'updatedAt',
     },
+    resolvers: ResolverType.DYNAMO,
   });
   return options;
 };

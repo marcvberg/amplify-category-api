@@ -13,6 +13,10 @@ export class ResourceConstants {
     AuthRolePolicy: 'AuthRolePolicy',
     UnauthRolePolicy: 'UnauthRolePolicy',
 
+    // DataStore
+    DataStoreLambdaLogicalID: 'DataStoreLambdaFunction',
+    DataStoreLambdaIAMRoleLogicalID: 'DataStoreLambdaIAMRole',
+
     // Elasticsearch
     ElasticsearchAccessIAMRoleLogicalID: 'ElasticSearchAccessIAMRole',
     ElasticsearchDomainLogicalID: 'ElasticSearchDomain',

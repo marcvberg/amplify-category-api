@@ -21,12 +21,13 @@ import {
 import { setArgs } from 'graphql-transformer-common';
 import { ModelDirectiveConfiguration } from '../directive';
 import { generateConditionSlot } from './common';
+import {MappingTemplate} from "@aws-amplify/graphql-transformer-core";
 
 /**
  * Generates VTL template in update mutation
  * @param modelName Name of the model
  */
-export const generateUpdateRequestTemplate = (modelName: string, isSyncEnabled: boolean, useLambdaResolver: boolean): string => {
+export const generateUpdateRequestTemplate = (modelName: string, isSyncEnabled: boolean): string => {
   const objectKeyVariable = 'ctx.stash.metadata.modelObjectKey';
   const keyFields: StringNode[] = [str('id')];
   if (isSyncEnabled) {
@@ -362,3 +363,26 @@ const generateKeyConditionTemplate = (attributeExistsValue: boolean): Expression
 
   return statements;
 };
+
+export const generateDatastoreLambdaInvokeRequestTemplate = (funcName: string): string => printBlock(`Invoke AWS Lambda data source: ${funcName}`)(
+  obj({
+    version: str('2018-05-29'),
+    operation: str('Invoke'),
+    payload: obj({
+      typeName: ref('util.toJson($ctx.stash.get("typeName"))'),
+      fieldName: ref('util.toJson($ctx.stash.get("fieldName"))'),
+      arguments: ref('util.toJson($ctx.arguments)'),
+      identity: ref('util.toJson($ctx.identity)'),
+      source: ref('util.toJson($ctx.source)'),
+      request: ref('util.toJson($ctx.request)'),
+      prev: ref('util.toJson($ctx.prev)'),
+    }),
+  }),
+);
+
+export const generateDatastoreLambdaInvokeResponseTemplate = (): string => printBlock('Handle error or return result')(
+  compoundExpression([
+    iff(ref('ctx.error'), raw('$util.error($ctx.error.message, $ctx.error.type)')),
+    raw('$util.toJson($ctx.result)'),
+  ]),
+);
