@@ -265,7 +265,13 @@ const _update = async ({ args: { input }, table, connection, belongsTo }) => {
 }
 
 const _delete = async ({ args: { input }, table, connection, belongsTo }) => {
-  const { id: uuid, _version = 0 } = input
+  const { id: uuid, _version = 0 } = input;
+  const updatedValues = {
+    _deleted: true,
+    _version: _version + 1,
+    _ttl: DeltaSyncConfig.BaseTableTTL, // in minutes plus current timestamp
+  };
+
   const sql = `
   UPDATE ${table} SET _deleted=true, _version=_version+1, _ttl = TIMESTAMPADD(MINUTE, ?, CURRENT_TIMESTAMP(3))
   WHERE _datastore_uuid = ? AND _version = ?`
