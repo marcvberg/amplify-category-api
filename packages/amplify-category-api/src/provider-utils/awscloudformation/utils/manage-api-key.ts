@@ -27,14 +27,7 @@ const getAppSyncClient = async (context: $TSContext): Promise<AppSyncClient> => 
 
 export const getApiKeyStatus = async (context: $TSContext): Promise<ApiKeyStatus> => {
   const appsyncClient = await getAppSyncClient(context);
-  const apiName = await context.amplify.executeProviderUtils(
-    context,
-    'awscloudformation',
-    'getAppSyncResourceName',
-    {
-      projectMeta: stateManager.getMeta(),
-    },
-  );
+  const apiName = await contextUtil.getGraphQLAPIResourceName(context);
   const meta = stateManager.getMeta();
   const apiId = meta?.api?.[apiName]?.output?.GraphQLAPIIdOutput;
   const apiKey = meta?.api?.[apiName]?.output?.GraphQLAPIKeyOutput;
