@@ -23,6 +23,6 @@ export class Schema {
   }
 
   public hasModel(name: string): boolean {
-    return this.models.some(model => model.getName() === name);
+    return this.models.some((model) => model.getName() === name);
   }
 }

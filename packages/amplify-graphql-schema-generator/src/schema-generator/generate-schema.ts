@@ -1,6 +1,17 @@
-import { EnumType, Field, Index, Model, Schema } from '../schema-representation';
 import { EnumValueDefinitionNode, Kind, print } from 'graphql';
-import { FieldWrapper, ObjectDefinitionWrapper, DirectiveWrapper, EnumWrapper } from '@aws-amplify/graphql-transformer-core';
+import {
+  FieldWrapper,
+  ObjectDefinitionWrapper,
+  DirectiveWrapper,
+  EnumWrapper,
+} from '@aws-amplify/graphql-transformer-core';
+import {
+  EnumType,
+  Field,
+  Index,
+  Model,
+  Schema,
+} from '../schema-representation';
 
 export const generateGraphQLSchema = (schema: Schema): string => {
   const models = schema.getModels();
@@ -9,12 +20,12 @@ export const generateGraphQLSchema = (schema: Schema): string => {
     definitions: [],
   };
 
-  models.forEach(model => {
+  models.forEach((model) => {
     const primaryKey = model.getPrimaryKey();
     if (!primaryKey) {
       return;
     }
-    
+
     const type = constructObjectType(model);
     const fields = model.getFields();
     const primaryKeyFields = primaryKey?.getFields();
@@ -27,7 +38,7 @@ export const generateGraphQLSchema = (schema: Schema): string => {
       const field: any = convertInternalFieldTypeToGraphQL(f, primaryKeyFields.includes(f.name));
       type.fields.push(field);
     });
-    
+
     addPrimaryKey(type, model.getPrimaryKey());
     addIndexes(type, model.getIndexes());
 
@@ -41,7 +52,7 @@ export const generateGraphQLSchema = (schema: Schema): string => {
 const convertInternalFieldTypeToGraphQL = (field: Field, isPrimaryKeyField: boolean): FieldWrapper => {
   const typeWrappers = [];
   let fieldType = field.type;
-  while (fieldType.kind !== "Scalar" && fieldType.kind !== "Custom" && fieldType.kind !== "Enum") {
+  while (fieldType.kind !== 'Scalar' && fieldType.kind !== 'Custom' && fieldType.kind !== 'Enum') {
     typeWrappers.push(fieldType.kind);
     fieldType = (fieldType as any).type;
   }
@@ -69,7 +80,7 @@ const convertInternalFieldTypeToGraphQL = (field: Field, isPrimaryKeyField: bool
             value: {
               kind: "StringValue",
               value: defaultStringValue,
-            },              
+            },
           },
         ],
       }));
@@ -150,7 +161,7 @@ const addIndexes = (type: ObjectDefinitionWrapper, indexes: Index[]): void => {
   indexes.forEach(index => {
     const firstField = index.getFields()[0];
     const indexField = type.getField(firstField);
-    
+
     const indexArguments = [];
     indexArguments.push(
       {
@@ -182,7 +193,7 @@ const addIndexes = (type: ObjectDefinitionWrapper, indexes: Index[]): void => {
                 value: k,
               };
             }),
-          },            
+          },
         },
       )
     }
@@ -225,7 +236,7 @@ const addPrimaryKey = (type: ObjectDefinitionWrapper, primaryKey: Index): void =
               value: k,
             };
           }),
-        },           
+        },
       },
     );
   }
@@ -248,9 +259,9 @@ const addPrimaryKey = (type: ObjectDefinitionWrapper, primaryKey: Index): void =
  * @returns if the default value is a compute expression like for example (RAND() * RAND()))
  */
 export const isComputeExpression = (value: string) => {
-  /* As per MySQL 8.x, 
+  /* As per MySQL 8.x,
     Complex computed expression default values like "(RAND() * RAND())" are enclosed within parentheses.
-    Simple computed expression default values like "RAND()" are not. 
+    Simple computed expression default values like "RAND()" are not.
     These functions could have one or more arguments too, like "COS(PI())".
   */
   const isSimpleComputedExpression = value.match(/^[a-zA-Z0-9]+\(.*\)/);

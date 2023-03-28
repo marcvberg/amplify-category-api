@@ -1,6 +1,13 @@
 import { ImportedRDSType, ImportedDataSourceConfig, constructRDSGlobalAmplifyInput } from '@aws-amplify/graphql-transformer-core';
 import * as fs from 'fs-extra';
-import { MySQLDataSourceAdapter, generateGraphQLSchema, Schema, Engine, DataSourceAdapter, MySQLDataSourceConfig } from '@aws-amplify/graphql-schema-generator';
+import {
+  MySQLDataSourceAdapter,
+  generateGraphQLSchema,
+  Schema,
+  Engine,
+  DataSourceAdapter,
+  MySQLDataSourceConfig
+} from '@aws-amplify/graphql-schema-generator';
 import * as os from 'os';
 import { printer } from 'amplify-prompts';
 import { $TSContext } from 'amplify-cli-core';
@@ -11,14 +18,14 @@ export const writeSchemaFile = (pathToSchemaFile: string, schemaString: string) 
 };
 
 export const generateRDSSchema = async (
-  context: $TSContext, 
-  databaseConfig: 
-  ImportedDataSourceConfig, pathToSchemaFile: string
+  context: $TSContext,
+  databaseConfig: ImportedDataSourceConfig,
+  pathToSchemaFile: string,
 ): Promise<string> => {
   // Establish the connection
   let adapter: DataSourceAdapter;
   let schema: Schema;
-  switch(databaseConfig.engine) {
+  switch (databaseConfig.engine) {
     case ImportedRDSType.MYSQL:
       adapter = new MySQLDataSourceAdapter(databaseConfig as MySQLDataSourceConfig);
       schema = new Schema(new Engine('MySQL'));
@@ -29,16 +36,17 @@ export const generateRDSSchema = async (
 
   try {
     await adapter.initialize();
-  } catch(error) {
+  } catch (error) {
     printer.error('Failed to connect to the specified RDS Data Source. Check the connection details in the schema and re-try. Use "amplify api update-secrets" to update the user credentials.');
     console.log(error?.message);
-    throw(error);
-  };
+    throw error;
+  }
 
   const models = await adapter.getModels();
   adapter.cleanup();
-  models.forEach(m => schema.addModel(m));
+  models.forEach((m) => schema.addModel(m));
 
-  const schemaString = await constructRDSGlobalAmplifyInput(context, databaseConfig, pathToSchemaFile) + os.EOL + os.EOL + generateGraphQLSchema(schema);
+  const schemaString = await constructRDSGlobalAmplifyInput(context, databaseConfig, pathToSchemaFile)
+    + os.EOL + os.EOL + generateGraphQLSchema(schema);
   return schemaString;
 };
